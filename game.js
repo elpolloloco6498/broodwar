@@ -7,13 +7,33 @@ function timer() {
     time += 0.05;
 }
 
+function initPosHeli() {
+    let margin = 0.2*height
+    let nb = randInt(1,4);
+    if (nb === 1)
+        return createVector(random(-margin, width+margin), random(-margin, 0));
+    else if (nb === 2)
+        return createVector(random(-margin, 0), random(-margin, height+margin));
+    else if (nb === 3)
+        return createVector(random(-margin, width+margin), random(height, height+margin));
+    else if (nb === 4)
+        return createVector(random(width, width+margin), random(-margin, height+margin));
+}
+
 function spawnZergs() {
     for (let i = 0; i < nbZerglings; i++) {
         zergs.push(new Zerg(bases));
     }
 
     if (zergs.length < 100) {
-        nbZerglings += 2;
+        nbZerglings += 5;
+    }
+}
+
+function spawnSquadron() {
+    if (squadron.length < 40) {
+        let pos = initPosHeli();
+        squadron.push(new Heli(false, pos.x, pos.y));
     }
 }
 
@@ -50,6 +70,7 @@ let gameOver = false;
 let zergs = [];
 let bases = [];
 let bullets = [];
+let squadron = [];
 let baseSprites, zergSprites;
 
 let heli, mouse, dir, axisX;
@@ -60,6 +81,7 @@ let gameoverImg, startingScreenImg, keysImg;
 let song, underattack;
 
 let time = 0;
+//change before commit
 let firstLaunch = true;
 
 function preload() {
@@ -91,6 +113,9 @@ function setup() {
     setInterval(timer, 50);
     //spawning interval
     setInterval(spawnZergs, 5000);
+    //spawning squadron member
+    setInterval(spawnSquadron, 20000);
+
     //initialization of the game
     for (let i = 0; i < nbBases; i++) {
         bases.push(new Base());
@@ -100,7 +125,11 @@ function setup() {
         zergs.push(new Zerg(bases));
     }
     //create player
-    heli = new Heli(1,300,400);
+    heli = new Heli(true,300,400);
+    //create followers
+    for (let i = 0; i < nbSquadron; i++) {
+        squadron.push(new Heli(false,random(width),random(height)));
+    }
     //BUTTONS
     startbutton = createButton('start game');
     startbutton.position(width/2-startbutton.width/2, height/2 + 50);
@@ -116,7 +145,7 @@ function setup() {
 
     //custom starcraft cursor mouse
     cursor('images/cursor.png');
-    song.play();
+    //song.play();
     //underattack.play();
 }
 
@@ -160,12 +189,16 @@ function draw() {
             dir.normalize();
 
             heli.angle = -dir.heading();
-
+            //creating squad for shooting
+            let squad = [...squadron];
+            squad.push(heli);
             if(mouseIsPressed) {
                 if(time > 0.05) {
-                    let bullet = heli.shoot(dir);
-                    bullet.angle = heli.angle;
-                    bullets.push(bullet);
+                    for (let aircraft of squad) {
+                        let bullet = heli.shoot(dir, aircraft.pos.x, aircraft.pos.y);
+                        bullet.angle = aircraft.angle;
+                        bullets.push(bullet);
+                    }
                     time = 0;
                 }
             }
@@ -173,6 +206,7 @@ function draw() {
             clear();
             image(terrainImg, 0, 0, width, height);
 
+            //flocking zergs
             for (let i = 0; i < zergs.length; i++) {
                 if (zergs[i].alive) {
                     zergs[i].flock(zergs);
@@ -211,6 +245,14 @@ function draw() {
 
             for (let base of bases) {
                 base.display(baseSprites);
+            }
+
+            //flocking squadron
+            for (let i = 0; i < squadron.length; i++) {
+                squadron[i].flock(squad, heli);
+                squadron[i].update();
+                squadron[i].display(spaceshipImg);
+                squadron[i].checkSide();
             }
 
             heli.update();
